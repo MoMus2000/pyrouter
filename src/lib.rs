@@ -1,5 +1,5 @@
 
-use std::{io::{Read, Write}, net::{TcpListener, TcpStream}, process::{exit, ExitCode}, thread};
+use std::{collections::HashMap, io::{Read, Write}, net::{TcpListener, TcpStream}, process::{exit, ExitCode}, thread};
 use std::str;
 
 use pyo3::prelude::*;
@@ -7,17 +7,18 @@ use pyo3::prelude::*;
 const BUFFER_SIZE : usize = 8096;
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct HttpRouter{
-    pub router_elems : Vec<RouterElement>
+    pub router_elems : Vec<RouterElement>,
+    pub mapper: HashMap<String, PyObject>
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct RouterElement{
-    pub path : &'static str,
+    pub path : String,
     pub callback_function: PyObject,
-    pub method : &'static str
+    pub method : String
 }
 
 #[pymethods]
@@ -25,30 +26,42 @@ impl HttpRouter{
     #[new]
     pub fn new() -> Self{
         HttpRouter{
-            router_elems: Vec::<RouterElement>::new()
+            router_elems: Vec::<RouterElement>::new(),
+            mapper: HashMap::<String, PyObject>::new()
         }
     }
 
-    pub fn parse_payload(&self, http_payload : String) -> String{
-        "/".to_string()
+    pub fn parse_and_run_func(&self, py: Python<'_>,http_payload : String) {
+        let parsed_url = http_payload;
+        self._run_func(py, parsed_url);
     }
 
-    pub fn add_func(&mut self, func: PyObject){
+    pub fn add_func(&mut self, path: String, method: String, func: PyObject){
         let router_elem = RouterElement{
-            path: "/",
-            method: "GET",
-            callback_function: func
+            path: path.clone(),
+            method: method.clone(),
+            callback_function: func.clone()
         };
         self.router_elems.push(router_elem);
+        self.mapper.insert(path, func);
     }
-    
-    pub fn run_func(&self, index: usize){
-        if index >= self.router_elems.len() {
-            return
+}
+
+
+impl HttpRouter{
+    fn _run_func(&self, py: Python<'_>,url: String){ // making it private
+        println!("Got this url {url}");
+        println!("Length of {}", self.router_elems.len());
+        let mapper = self.mapper.clone();
+        let func = mapper.get(&url);
+        match func {
+            Some(value) => {
+                value.call0(py).unwrap();
+            }
+            _ => {
+                println!("Function not found !")
+            }
         }
-        let _ = Python::with_gil(|py| {
-            self.router_elems[index].callback_function.clone().call0(py).unwrap();
-        });
     }
 }
 
@@ -92,10 +105,13 @@ impl SimpleServer {
 
         match listener {
             Ok(socket) => {
-                for stream in socket.incoming(){
+                for stream in socket.incoming() {
                     let router = self.router.as_ref().unwrap().clone();
                     thread::spawn(move || {
-                        handle_request(stream.unwrap(), router);
+                        unsafe{
+                            let py = Python::assume_gil_acquired();
+                            handle_request(py, stream.unwrap(), router);
+                        }
                     });
                 }
             }
@@ -109,16 +125,18 @@ impl SimpleServer {
 
 }
 
-fn handle_request(stream : TcpStream, router: HttpRouter){
+fn handle_request(py:Python<'_>, stream : TcpStream, router: HttpRouter){
     let mut stream = stream.try_clone().unwrap();
     let mut buffer = [0; BUFFER_SIZE];
+    println!("> Handling request .. ");
     loop{
         match stream.read(&mut buffer){
             Ok(len) =>{
                 let string_result = str::from_utf8(&buffer[0..len]);
                 match string_result{
                     Ok(msg) => {
-                        let route = router.parse_payload(msg.to_string());
+                        println!("> Msg {msg}");
+                        router.parse_and_run_func(py, msg.trim().to_string());
                     }
                     Err(_) => {
                         exit(1);
