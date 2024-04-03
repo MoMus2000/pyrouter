@@ -58,7 +58,8 @@ impl HttpRouter{
             Some(value) => {
                 unsafe{
                     let py = Python::assume_gil_acquired();
-                    value.call1(py, (1, 2));
+                    value.call0(py);
+                    // value.call1(py, (1, 2));
                 }
             }
             _ => {
