@@ -31,9 +31,9 @@ impl HttpRouter{
         }
     }
 
-    pub fn parse_and_run_func(&self, py: Python<'_>,http_payload : String) {
+    pub fn parse_and_run_func(&self, http_payload : String) {
         let parsed_url = http_payload;
-        self._run_func(py, parsed_url);
+        self._run_func(parsed_url);
     }
 
     pub fn add_func(&mut self, path: String, method: String, func: PyObject){
@@ -49,14 +49,17 @@ impl HttpRouter{
 
 
 impl HttpRouter{
-    fn _run_func(&self, py: Python<'_>,url: String){ // making it private
+    fn _run_func(&self,url: String){ // making it private
         println!("Got this url {url}");
         println!("Length of {}", self.router_elems.len());
         let mapper = self.mapper.clone();
         let func = mapper.get(&url);
         match func {
             Some(value) => {
-                value.call0(py).unwrap();
+                unsafe{
+                    let py = Python::assume_gil_acquired();
+                    value.call1(py, (1, 2));
+                }
             }
             _ => {
                 println!("Function not found !")
@@ -97,6 +100,18 @@ impl SimpleServer {
     }
 
     pub fn start_server(&self){
+        Python::with_gil(|py| {
+            py.run(
+                r#"
+import signal
+print("[python] Ignoring system signals")
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+            "#,
+            None,
+            None,
+            )
+            .unwrap();
+        });
         let ip_address = format!("{}{}",self.address, self.port);
 
         let listener = TcpListener::bind(&ip_address);
@@ -110,7 +125,7 @@ impl SimpleServer {
                     thread::spawn(move || {
                         unsafe{
                             let py = Python::assume_gil_acquired();
-                            handle_request(py, stream.unwrap(), router);
+                            handle_request(stream.unwrap(), router);
                         }
                     });
                 }
@@ -125,7 +140,7 @@ impl SimpleServer {
 
 }
 
-fn handle_request(py:Python<'_>, stream : TcpStream, router: HttpRouter){
+fn handle_request(stream : TcpStream, router: HttpRouter){
     let mut stream = stream.try_clone().unwrap();
     let mut buffer = [0; BUFFER_SIZE];
     println!("> Handling request .. ");
@@ -136,7 +151,7 @@ fn handle_request(py:Python<'_>, stream : TcpStream, router: HttpRouter){
                 match string_result{
                     Ok(msg) => {
                         println!("> Msg {msg}");
-                        router.parse_and_run_func(py, msg.trim().to_string());
+                        router.parse_and_run_func(msg.trim().to_string());
                     }
                     Err(_) => {
                         exit(1);

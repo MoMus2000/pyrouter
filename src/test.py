@@ -7,8 +7,8 @@ def some_other_func_doing_someshit():
     df = pd.DataFrame(data=d)
     print(df.head())
 
-def do_same_hara():
-    print("Same Hara")
+def do_same_hara(a, b):
+    print("Same Hara ", a, b)
     some_other_func_doing_someshit()
 
 def do_rasengan():
