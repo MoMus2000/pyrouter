@@ -58,7 +58,9 @@ for the python C extension modules from annotated rust code.
 ```rust
 #[pyfunction]
 /// A Python module implemented in Rust.
-//-> Expanded to the rust code needed to create the C extension modules that define what the python functions look like and what they do.
+//-> Expanded to the rust code needed to create the 
+// C extension modules that define what the python 
+// functions look like and what they do.
 fn my_rust_func(){} 
 
 #[pymodule]
