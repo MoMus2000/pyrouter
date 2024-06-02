@@ -5,9 +5,16 @@ Simple http server concept with rust backend with Python frontend.
 ## Install
 
 ```bash
-pip3 -m venv test
-source test/bin/activate
+conda create --name test_pyo3 python=3.10
+conda activate test_pyo3
+pip3 install maturin
+pip3 install pandas
 ./build.sh
+
+telnet localhost 8080
+Then send string(s)
+/
+/1
 ```
 
 ## Sample Code
