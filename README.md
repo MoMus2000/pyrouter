@@ -17,6 +17,12 @@ Then send string(s)
 /1
 ```
 
+```bash
+# For pypy3
+maturin build -i /opt/homebrew/bin/pypy3.10
+pypy3 -m pip install /path/to/generated_whl
+```
+
 ## Sample Code
 ```python
 import pyrouter
